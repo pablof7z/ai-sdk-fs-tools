@@ -20,7 +20,8 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
-    "typecheck": "tsc --noEmit",
+    "example:nested-agents": "tsx examples/nested-agents/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.examples.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist coverage",
@@ -58,6 +59,7 @@
     "@types/node": "^24.10.1",
     "ai": "^6.0.116",
     "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16",
     "zod": "^4.3.6"

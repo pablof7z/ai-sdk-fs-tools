@@ -67,7 +67,7 @@ const fs_write = createFsWriteTool({
 });
 ```
 
-For a concrete hierarchical `AGENTS.md` example, see [examples/hierarchical-fs-read-agents-md.md](./examples/hierarchical-fs-read-agents-md.md).
+For a runnable hierarchical `AGENTS.md` example, see [`examples/nested-agents/`](./examples/nested-agents/).
 
 ## API
 
