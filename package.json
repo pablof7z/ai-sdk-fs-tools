@@ -1,0 +1,65 @@
+{
+  "name": "ai-sdk-fs-tools",
+  "version": "0.1.0",
+  "description": "Portable AI SDK filesystem tools with optional AGENTS.md reminders",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist coverage",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "filesystem",
+    "tools",
+    "agents-md"
+  ],
+  "author": "Pablo Fernandez",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pablof7z/ai-sdk-fs-tools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pablof7z/ai-sdk-fs-tools/issues"
+  },
+  "homepage": "https://github.com/pablof7z/ai-sdk-fs-tools#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "packageManager": "pnpm@10.5.2",
+  "peerDependencies": {
+    "ai": "^6.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "ai": "^6.0.116",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16",
+    "zod": "^4.3.6"
+  }
+}
