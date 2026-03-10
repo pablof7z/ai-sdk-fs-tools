@@ -127,11 +127,11 @@ function formatSystemReminder(files: AgentsMdFile[], projectRoot: string): strin
 
     const sections = files.map((file) => {
         const relativePath = relative(projectRoot, file.directory);
-        const displayPath = relativePath || "(project root)";
-        return `# AGENTS.md from ${displayPath}\n\n${file.content.trim()}`;
+        const displayPath = relativePath ? `/${relativePath.replaceAll("\\", "/")}` : "/";
+        return `<agents.md path="${displayPath}">\n${file.content.trim()}\n</agents.md>`;
     });
 
-    return `\n<system-reminder>\n${sections.join("\n\n")}\n</system-reminder>`;
+    return `\n<system-reminder type="AGENTS.md">\n${sections.join("\n\n")}\n</system-reminder>`;
 }
 
 export async function getAgentsMdReminderForPath(args: {

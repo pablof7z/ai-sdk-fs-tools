@@ -18,22 +18,22 @@ pnpm example:nested-agents
 Output:
 
 ```text
-     1  This is the example file read by examples/nested-agents/index.ts.
-     2  It exists to demonstrate hierarchical AGENTS.md reminders in fs_read output.
-     3
-<system-reminder>
-# AGENTS.md from file
-
+     1	This is the example file read by examples/nested-agents/index.ts.
+     2	It exists to demonstrate hierarchical AGENTS.md reminders in fs_read output.
+     3	
+<system-reminder type="AGENTS.md">
+<agents.md path="/file">
 # Nested file rules
 
 - Read examples as plain text.
 - Show the reminder block after file contents.
+</agents.md>
 
-# AGENTS.md from (project root)
-
+<agents.md path="/">
 # Example root rules
 
 - Explain output briefly.
 - Keep examples easy to inspect.
+</agents.md>
 </system-reminder>
 ```
