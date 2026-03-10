@@ -125,7 +125,7 @@ function formatSystemReminder(files: AgentsMdFile[], projectRoot: string): strin
         return "";
     }
 
-    const sections = files.map((file) => {
+    const sections = [...files].reverse().map((file) => {
         const relativePath = relative(projectRoot, file.directory);
         const displayPath = relativePath ? `/${relativePath.replaceAll("\\", "/")}` : "/";
         return `<agents.md path="${displayPath}">\n${file.content.trim()}\n</agents.md>`;

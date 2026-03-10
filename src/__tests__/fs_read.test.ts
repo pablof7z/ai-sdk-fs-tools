@@ -193,7 +193,7 @@ describe("createFsReadTool", () => {
         expect(result).toContain("# Root rule");
     });
 
-    it("orders AGENTS.md reminders from specific to general and deduplicates after a full read", async () => {
+    it("orders AGENTS.md reminders from general to specific and deduplicates after a full read", async () => {
         await writeTextFile(join(workingDirectory, "AGENTS.md"), "# Root rule");
         await writeTextFile(join(workingDirectory, "src", "AGENTS.md"), "# Src rule");
         const filePath = join(workingDirectory, "src", "feature.ts");
@@ -216,12 +216,12 @@ describe("createFsReadTool", () => {
         });
 
         const firstText = String(firstResult);
-        expect(firstText.indexOf('<agents.md path="/src">')).toBeLessThan(
-            firstText.indexOf('<agents.md path="/">'),
+        expect(firstText.indexOf('<agents.md path="/">')).toBeLessThan(
+            firstText.indexOf('<agents.md path="/src">'),
         );
         expect(firstText).toContain('<system-reminder type="AGENTS.md">');
-        expect(firstText).toContain('<agents.md path="/src">');
         expect(firstText).toContain('<agents.md path="/">');
+        expect(firstText).toContain('<agents.md path="/src">');
         expect(firstText).toContain("# Src rule");
         expect(firstText).toContain("# Root rule");
         expect(String(secondResult)).not.toContain("<system-reminder>");
