@@ -116,7 +116,9 @@ async function executePathRead(
 
 export function createFsReadTool(options: FsToolsOptions): FsTool<FsReadInput, string | ErrorTextResult> {
     const resolvedOptions = resolveFsToolsOptions(options);
-    const agentsMdResolver = createAgentsMdResolver(resolvedOptions.agentsMd.filename);
+    const agentsMdResolver = resolvedOptions.agentsMd === false
+        ? null
+        : createAgentsMdResolver();
     const visibilityTracker = createAgentsMdVisibilityTracker();
 
     const toolInstance = tool({
@@ -163,7 +165,7 @@ export function createFsReadTool(options: FsToolsOptions): FsTool<FsReadInput, s
                     content = pathReadResult.content;
                     source = input.path!;
 
-                    if (resolvedOptions.agentsMd.enabled) {
+                    if (resolvedOptions.agentsMd !== false && agentsMdResolver) {
                         const reminder = await getAgentsMdReminderForPath({
                             targetPath: input.path!,
                             projectRoot: resolvedOptions.agentsMd.projectRoot,

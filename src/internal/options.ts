@@ -2,16 +2,14 @@ import { resolve } from "node:path";
 import type { FsToolsOptions } from "../types";
 
 export interface ResolvedAgentsMdOptions {
-    enabled: boolean;
     projectRoot: string;
-    filename: string;
 }
 
 export interface ResolvedFsToolsOptions extends Omit<FsToolsOptions, "agentsMd"> {
     workingDirectory: string;
     allowedRoots: string[];
     protectedWriteRoots: string[];
-    agentsMd: ResolvedAgentsMdOptions;
+    agentsMd: false | ResolvedAgentsMdOptions;
 }
 
 function uniqueResolvedPaths(paths: string[]): string[] {
@@ -28,11 +26,11 @@ export function resolveFsToolsOptions(options: FsToolsOptions): ResolvedFsToolsO
     const workingDirectory = resolve(options.workingDirectory);
     const allowedRoots = uniqueResolvedPaths(options.allowedRoots ?? []);
     const protectedWriteRoots = uniqueResolvedPaths(options.protectedWriteRoots ?? []);
-    const agentsMd = {
-        enabled: options.agentsMd?.enabled ?? false,
-        projectRoot: resolve(options.agentsMd?.projectRoot ?? workingDirectory),
-        filename: options.agentsMd?.filename?.trim() || "AGENTS.md",
-    };
+    const agentsMd = options.agentsMd === false
+        ? false
+        : {
+            projectRoot: resolve(options.agentsMd?.projectRoot ?? workingDirectory),
+        };
 
     return {
         ...options,

@@ -180,7 +180,6 @@ describe("createFsReadTool", () => {
         const fsRead = createFsReadTool({
             workingDirectory,
             agentsMd: {
-                enabled: true,
                 projectRoot: workingDirectory,
             },
         });
@@ -203,7 +202,6 @@ describe("createFsReadTool", () => {
         const fsRead = createFsReadTool({
             workingDirectory,
             agentsMd: {
-                enabled: true,
                 projectRoot: workingDirectory,
             },
         });
@@ -234,7 +232,6 @@ describe("createFsReadTool", () => {
         const fsRead = createFsReadTool({
             workingDirectory,
             agentsMd: {
-                enabled: true,
                 projectRoot: workingDirectory,
             },
         });
@@ -251,5 +248,23 @@ describe("createFsReadTool", () => {
 
         expect(String(firstResult)).toContain("<system-reminder>");
         expect(String(secondResult)).toContain("<system-reminder>");
+    });
+
+    it("disables AGENTS.md reminders when agentsMd is false", async () => {
+        await writeTextFile(join(workingDirectory, "AGENTS.md"), "# Root rule");
+        const filePath = join(workingDirectory, "src", "index.ts");
+        await writeTextFile(filePath, "export const x = 1;");
+
+        const fsRead = createFsReadTool({
+            workingDirectory,
+            agentsMd: false,
+        });
+        const result = await fsRead.execute({
+            path: filePath,
+            description: "read source",
+        });
+
+        expect(String(result)).not.toContain("<system-reminder>");
+        expect(String(result)).not.toContain("# Root rule");
     });
 });

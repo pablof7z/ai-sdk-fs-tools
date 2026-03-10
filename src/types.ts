@@ -1,9 +1,7 @@
 import type { Tool as CoreTool } from "ai";
 
 export interface AgentsMdOptions {
-    enabled?: boolean;
     projectRoot?: string;
-    filename?: string;
 }
 
 export interface AnalyzeContentArgs {
@@ -20,7 +18,7 @@ export interface FsToolsOptions {
     workingDirectory: string;
     allowedRoots?: string[];
     protectedWriteRoots?: string[];
-    agentsMd?: AgentsMdOptions;
+    agentsMd?: false | AgentsMdOptions;
     loadToolResult?: LoadToolResultHook;
     analyzeContent?: AnalyzeContentHook;
 }

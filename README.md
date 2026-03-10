@@ -34,7 +34,6 @@ const tools = createFsTools({
   allowedRoots: ["/workspace/shared"],
   protectedWriteRoots: ["/workspace/project/reports"],
   agentsMd: {
-    enabled: true,
     projectRoot: "/workspace/project",
   },
   loadToolResult: async (id) => lookupSavedToolOutput(id),
@@ -57,7 +56,9 @@ import { createFsReadTool, createFsWriteTool } from "ai-sdk-fs-tools";
 
 const fs_read = createFsReadTool({
   workingDirectory: "/workspace/project",
-  agentsMd: { enabled: true },
+  agentsMd: {
+    projectRoot: "/workspace/project",
+  },
 });
 
 const fs_write = createFsWriteTool({
@@ -89,10 +90,8 @@ type FsToolsOptions = {
   workingDirectory: string;
   allowedRoots?: string[];
   protectedWriteRoots?: string[];
-  agentsMd?: {
-    enabled?: boolean;
+  agentsMd?: false | {
     projectRoot?: string;
-    filename?: string;
   };
   loadToolResult?: (id: string) => Promise<string>;
   analyzeContent?: (args: {
@@ -108,7 +107,8 @@ type FsToolsOptions = {
 - Accepts exactly one of `path` or `tool`
 - `path` must be absolute
 - Returns numbered file content or a directory listing
-- Appends hierarchical `AGENTS.md` reminders when enabled
+- Appends hierarchical `AGENTS.md` reminders by default
+- Disable reminders with `agentsMd: false`
 - `prompt` requires `analyzeContent`
 - `tool` requires `loadToolResult`
 
@@ -138,16 +138,6 @@ pnpm typecheck
 pnpm test
 pnpm build
 ```
-
-## TENEX migration note
-
-TENEX can adopt this package later without making the package TENEX-aware:
-
-- Pass the TENEX tool transcript loader into `loadToolResult`
-- Pass the TENEX content synthesis path into `analyzeContent`
-- Pass the TENEX reports directory as `protectedWriteRoots`
-
-That preserves the current TENEX behavior while keeping this package portable.
 
 ## License
 

@@ -3,6 +3,8 @@ import { readFile, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { isPathWithinDirectory } from "./path-security";
 
+const AGENTS_MD_FILENAME = "AGENTS.md";
+
 interface AgentsMdFile {
     path: string;
     directory: string;
@@ -32,7 +34,7 @@ export function createAgentsMdVisibilityTracker(): AgentsMdVisibilityTracker {
     };
 }
 
-export function createAgentsMdResolver(filename: string) {
+export function createAgentsMdResolver() {
     const contentCache = new Map<string, string | null>();
 
     async function isDirectory(targetPath: string): Promise<boolean> {
@@ -89,7 +91,7 @@ export function createAgentsMdResolver(filename: string) {
                 break;
             }
 
-            const agentsMdPath = join(currentDir, filename);
+            const agentsMdPath = join(currentDir, AGENTS_MD_FILENAME);
             const content = await readAgentsMdFile(agentsMdPath);
             if (content !== null) {
                 files.push({
