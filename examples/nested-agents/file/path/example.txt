@@ -1,2 +1,0 @@
-This is the example file read by examples/nested-agents/index.ts.
-It exists to demonstrate hierarchical AGENTS.md reminders in fs_read output.

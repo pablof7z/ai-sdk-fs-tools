@@ -3,9 +3,8 @@ import { fileURLToPath } from "node:url";
 import { createFsReadTool } from "../../src/index";
 
 const exampleRoot = fileURLToPath(new URL(".", import.meta.url));
-const targetFile = join(exampleRoot, "file", "path", "example.txt");
 
-async function main() {
+async function readExample(relativePath: string) {
     const fsRead = createFsReadTool({
         workingDirectory: exampleRoot,
         agentsMd: {
@@ -14,11 +13,18 @@ async function main() {
     });
 
     const result = await fsRead.execute({
-        path: targetFile,
-        description: "show nested AGENTS.md reminder output",
+        path: join(exampleRoot, relativePath),
+        description: `inspect ${relativePath}`,
     });
 
+    console.log(`=== ${relativePath} ===`);
     console.log(String(result));
+    console.log("");
+}
+
+async function main() {
+    await readExample("src/operations/add.ts");
+    await readExample("src/ui/render-display.ts");
 }
 
 main().catch((error) => {
