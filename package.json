@@ -1,6 +1,6 @@
 {
   "name": "ai-sdk-fs-tools",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Portable AI SDK filesystem tools with optional AGENTS.md reminders",
   "type": "module",
   "main": "./dist/index.js",
