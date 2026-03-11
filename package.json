@@ -25,7 +25,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist coverage",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "ai",
@@ -54,6 +54,9 @@
   "peerDependencies": {
     "ai": "^6.0.0",
     "zod": "^4.0.0"
+  },
+  "dependencies": {
+    "ai-sdk-system-reminders": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
