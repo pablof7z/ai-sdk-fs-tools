@@ -188,7 +188,7 @@ describe("createFsReadTool", () => {
             description: "read source",
         });
 
-        expect(result).toContain('<system-reminder type="AGENTS.md">');
+        expect(result).toContain('<system-reminder type="agents-md">');
         expect(result).toContain('<agents.md path="/">');
         expect(result).toContain("# Root rule");
     });
@@ -219,7 +219,9 @@ describe("createFsReadTool", () => {
         expect(firstText.indexOf('<agents.md path="/">')).toBeLessThan(
             firstText.indexOf('<agents.md path="/src">'),
         );
-        expect(firstText).toContain('<system-reminder type="AGENTS.md">');
+        expect(firstText).toContain('<system-reminder type="agents-md">');
+        expect(firstText).toContain('<agents.md path="/src">');
+
         expect(firstText).toContain('<agents.md path="/">');
         expect(firstText).toContain('<agents.md path="/src">');
         expect(firstText).toContain("# Src rule");
@@ -249,8 +251,8 @@ describe("createFsReadTool", () => {
             description: "full read",
         });
 
-        expect(String(firstResult)).toContain('<system-reminder type="AGENTS.md">');
-        expect(String(secondResult)).toContain('<system-reminder type="AGENTS.md">');
+        expect(String(firstResult)).toContain('<system-reminder type="agents-md">');
+        expect(String(secondResult)).toContain('<system-reminder type="agents-md">');
     });
 
     it("disables AGENTS.md reminders when agentsMd is false", async () => {

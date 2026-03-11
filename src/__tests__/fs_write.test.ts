@@ -8,14 +8,10 @@ describe("createFsWriteTool", () => {
     let workingDirectory: string;
     let outsideDirectory: string;
     let allowedDirectory: string;
-    let protectedDirectory: string;
-
     beforeEach(async () => {
         workingDirectory = await createTempDir("ai-sdk-fs-tools-write-");
         outsideDirectory = await createTempDir("ai-sdk-fs-tools-write-outside-");
         allowedDirectory = await createTempDir("ai-sdk-fs-tools-write-allowed-");
-        protectedDirectory = join(workingDirectory, "reports");
-        await mkdir(protectedDirectory, { recursive: true });
     });
 
     afterEach(async () => {
@@ -68,11 +64,18 @@ describe("createFsWriteTool", () => {
         await expect(readFile(filePath, "utf8")).resolves.toBe("allowed");
     });
 
-    it("blocks writes to protectedWriteRoots", async () => {
+    it("beforeExecute can block writes", async () => {
+        const protectedDirectory = join(workingDirectory, "reports");
+        await mkdir(protectedDirectory, { recursive: true });
         const filePath = join(protectedDirectory, "report.md");
         const fsWrite = createFsWriteTool({
             workingDirectory,
-            protectedWriteRoots: [protectedDirectory],
+            beforeExecute: (_toolName, input) => {
+                const path = input.path as string | undefined;
+                if (path?.startsWith(protectedDirectory)) {
+                    throw new Error("Writes to reports directory are blocked");
+                }
+            },
         });
 
         const result = await fsWrite.execute({
@@ -81,7 +84,7 @@ describe("createFsWriteTool", () => {
             description: "write report",
         });
 
-        expect(expectErrorText(result).text).toContain("protectedWriteRoots");
+        expect(expectErrorText(result).text).toContain("Writes to reports directory are blocked");
     });
 
     it("blocks write attempts through symlink escapes", async () => {

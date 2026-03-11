@@ -8,7 +8,8 @@ export interface ResolvedAgentsMdOptions {
 export interface ResolvedFsToolsOptions extends Omit<FsToolsOptions, "agentsMd"> {
     workingDirectory: string;
     allowedRoots: string[];
-    protectedWriteRoots: string[];
+    namePrefix: string;
+    strictContainment: boolean;
     agentsMd: false | ResolvedAgentsMdOptions;
 }
 
@@ -25,7 +26,6 @@ function uniqueResolvedPaths(paths: string[]): string[] {
 export function resolveFsToolsOptions(options: FsToolsOptions): ResolvedFsToolsOptions {
     const workingDirectory = resolve(options.workingDirectory);
     const allowedRoots = uniqueResolvedPaths(options.allowedRoots ?? []);
-    const protectedWriteRoots = uniqueResolvedPaths(options.protectedWriteRoots ?? []);
     const agentsMd = options.agentsMd === false
         ? false
         : {
@@ -36,7 +36,8 @@ export function resolveFsToolsOptions(options: FsToolsOptions): ResolvedFsToolsO
         ...options,
         workingDirectory,
         allowedRoots,
-        protectedWriteRoots,
+        namePrefix: options.namePrefix ?? "fs",
+        strictContainment: options.strictContainment ?? false,
         agentsMd,
     };
 }

@@ -6,11 +6,8 @@ import { cleanupTempDir, createTempDir, expectErrorText, writeTextFile } from ".
 
 describe("createFsEditTool", () => {
     let workingDirectory: string;
-    let protectedDirectory: string;
-
     beforeEach(async () => {
         workingDirectory = await createTempDir("ai-sdk-fs-tools-edit-");
-        protectedDirectory = join(workingDirectory, "reports");
     });
 
     afterEach(async () => {
@@ -45,7 +42,7 @@ describe("createFsEditTool", () => {
             new_string: "there",
         });
 
-        expect(expectErrorText(result).text).toContain("was not found");
+        expect(expectErrorText(result).text).toContain("old_string not found");
     });
 
     it("requires a unique match unless replace_all is true", async () => {
@@ -72,12 +69,18 @@ describe("createFsEditTool", () => {
         await expect(readFile(filePath, "utf8")).resolves.toBe("hi\nhi\nhi");
     });
 
-    it("blocks edits inside protectedWriteRoots", async () => {
+    it("beforeExecute can block edits", async () => {
+        const protectedDirectory = join(workingDirectory, "reports");
         const filePath = join(protectedDirectory, "report.txt");
         await writeTextFile(filePath, "report");
         const fsEdit = createFsEditTool({
             workingDirectory,
-            protectedWriteRoots: [protectedDirectory],
+            beforeExecute: (_toolName, input) => {
+                const path = input.path as string | undefined;
+                if (path?.startsWith(protectedDirectory)) {
+                    throw new Error("Edits to reports directory are blocked");
+                }
+            },
         });
 
         const result = await fsEdit.execute({
@@ -87,6 +90,6 @@ describe("createFsEditTool", () => {
             new_string: "updated",
         });
 
-        expect(expectErrorText(result).text).toContain("protectedWriteRoots");
+        expect(expectErrorText(result).text).toContain("Edits to reports directory are blocked");
     });
 });

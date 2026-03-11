@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      ai-sdk-system-reminders:
+        specifier: file:../ai-sdk-system-reminders
+        version: file:../ai-sdk-system-reminders(@ai-sdk/provider@3.0.8)
     devDependencies:
       '@types/node':
         specifier: ^24.10.1
@@ -550,6 +554,11 @@ packages:
     resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  ai-sdk-system-reminders@file:../ai-sdk-system-reminders:
+    resolution: {directory: ../ai-sdk-system-reminders, type: directory}
+    peerDependencies:
+      '@ai-sdk/provider': '>=2.0.0'
 
   ai@6.0.116:
     resolution: {integrity: sha512-7yM+cTmyRLeNIXwt4Vj+mrrJgVQ9RMIW5WO0ydoLoYkewIvsMcvUmqS4j2RJTUXaF1HphwmSKUMQ/HypNRGOmA==}
@@ -1383,6 +1392,10 @@ snapshots:
       tinyrainbow: 3.0.3
 
   acorn@8.15.0: {}
+
+  ai-sdk-system-reminders@file:../ai-sdk-system-reminders(@ai-sdk/provider@3.0.8):
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
 
   ai@6.0.116(zod@4.3.6):
     dependencies:

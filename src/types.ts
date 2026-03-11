@@ -1,5 +1,7 @@
 import type { Tool as CoreTool } from "ai";
 
+export type FsToolName = string;
+
 export interface AgentsMdOptions {
     projectRoot?: string;
 }
@@ -17,10 +19,20 @@ export type LoadToolResultHook = (id: string) => Promise<string>;
 export interface FsToolsOptions {
     workingDirectory: string;
     allowedRoots?: string[];
-    protectedWriteRoots?: string[];
+    namePrefix?: string;
+    descriptions?: {
+        read?: string;
+        write?: string;
+        edit?: string;
+        glob?: string;
+        grep?: string;
+    };
+    strictContainment?: boolean;
     agentsMd?: false | AgentsMdOptions;
     loadToolResult?: LoadToolResultHook;
     analyzeContent?: AnalyzeContentHook;
+    beforeExecute?: (toolName: FsToolName, input: Record<string, unknown>) => void;
+    formatOutsideRootsError?: (path: string, workingDirectory: string) => string;
 }
 
 export interface ErrorTextResult {
@@ -85,13 +97,7 @@ export interface FsGrepInput {
 
 export type FsTool<TInput = unknown, TOutput = unknown> = Omit<CoreTool<TInput, TOutput>, "execute"> & {
     execute: (input: TInput) => Promise<TOutput>;
-    getHumanReadableContent?: (args: TInput) => string;
 };
 
-export interface FsToolSet {
-    fs_read: FsTool<FsReadInput, string | ErrorTextResult>;
-    fs_write: FsTool<FsWriteInput, string | ErrorTextResult>;
-    fs_edit: FsTool<FsEditInput, string | ErrorTextResult>;
-    fs_glob: FsTool<FsGlobInput, string | ErrorTextResult>;
-    fs_grep: FsTool<FsGrepInput, string | ErrorTextResult>;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type FsToolSet = Record<string, FsTool<any, string | ErrorTextResult>>;

@@ -1,17 +1,20 @@
 import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
+import { wrapInSystemReminder } from "ai-sdk-system-reminders";
 import { isPathWithinDirectory } from "./path-security";
 
 const AGENTS_MD_FILENAME = "AGENTS.md";
 
-interface AgentsMdFile {
+export const AGENTS_MD_REMINDER_TYPE = "agents-md";
+
+export interface AgentsMdFile {
     path: string;
     directory: string;
     content: string;
 }
 
-interface AgentsMdVisibilityTracker {
+export interface AgentsMdVisibilityTracker {
     isVisible: (agentsMdPath: string) => boolean;
     markVisible: (agentsMdPath: string) => void;
 }
@@ -19,6 +22,14 @@ interface AgentsMdVisibilityTracker {
 export interface AgentsMdReminderContext {
     content: string;
     hasReminder: boolean;
+    includedFiles: AgentsMdFile[];
+}
+
+export interface AgentsMdResolver {
+    findFiles: (targetPath: string, projectRoot: string) => Promise<AgentsMdFile[]>;
+    hasRootAgentsMd: (projectRoot: string) => Promise<boolean>;
+    getRootAgentsMdContent: (projectRoot: string) => Promise<string | null>;
+    clearCache: () => void;
 }
 
 export function createAgentsMdVisibilityTracker(): AgentsMdVisibilityTracker {
@@ -34,7 +45,7 @@ export function createAgentsMdVisibilityTracker(): AgentsMdVisibilityTracker {
     };
 }
 
-export function createAgentsMdResolver() {
+export function createAgentsMdResolver(): AgentsMdResolver {
     const contentCache = new Map<string, string | null>();
 
     async function isDirectory(targetPath: string): Promise<boolean> {
@@ -52,7 +63,6 @@ export function createAgentsMdResolver() {
 
         try {
             if (!existsSync(absolutePath)) {
-                contentCache.set(absolutePath, null);
                 return null;
             }
 
@@ -60,7 +70,6 @@ export function createAgentsMdResolver() {
             contentCache.set(absolutePath, content);
             return content;
         } catch {
-            contentCache.set(absolutePath, null);
             return null;
         }
     }
@@ -69,7 +78,10 @@ export function createAgentsMdResolver() {
         const absoluteProjectRoot = resolve(projectRoot);
         const absoluteTargetPath = resolve(targetPath);
 
-        if (!isPathWithinDirectory(absoluteTargetPath, absoluteProjectRoot) && absoluteTargetPath !== absoluteProjectRoot) {
+        if (
+            !isPathWithinDirectory(absoluteTargetPath, absoluteProjectRoot) &&
+            absoluteTargetPath !== absoluteProjectRoot
+        ) {
             return [];
         }
 
@@ -87,7 +99,10 @@ export function createAgentsMdResolver() {
             }
             visited.add(currentDir);
 
-            if (!isPathWithinDirectory(currentDir, absoluteProjectRoot) && currentDir !== absoluteProjectRoot) {
+            if (
+                !isPathWithinDirectory(currentDir, absoluteProjectRoot) &&
+                currentDir !== absoluteProjectRoot
+            ) {
                 break;
             }
 
@@ -115,12 +130,28 @@ export function createAgentsMdResolver() {
         return files;
     }
 
+    async function hasRootAgentsMd(projectRoot: string): Promise<boolean> {
+        const content = await readAgentsMdFile(join(resolve(projectRoot), AGENTS_MD_FILENAME));
+        return content !== null;
+    }
+
+    async function getRootAgentsMdContent(projectRoot: string): Promise<string | null> {
+        return readAgentsMdFile(join(resolve(projectRoot), AGENTS_MD_FILENAME));
+    }
+
+    function clearCache(): void {
+        contentCache.clear();
+    }
+
     return {
         findFiles,
+        hasRootAgentsMd,
+        getRootAgentsMdContent,
+        clearCache,
     };
 }
 
-function formatSystemReminder(files: AgentsMdFile[], projectRoot: string): string {
+export function formatAgentsMdReminder(files: AgentsMdFile[], projectRoot: string): string {
     if (files.length === 0) {
         return "";
     }
@@ -131,7 +162,10 @@ function formatSystemReminder(files: AgentsMdFile[], projectRoot: string): strin
         return `<agents.md path="${displayPath}">\n${file.content.trim()}\n</agents.md>`;
     });
 
-    return `\n<system-reminder type="AGENTS.md">\n${sections.join("\n\n")}\n</system-reminder>`;
+    return `\n${wrapInSystemReminder({
+        type: AGENTS_MD_REMINDER_TYPE,
+        content: sections.join("\n\n"),
+    })}`;
 }
 
 export async function getAgentsMdReminderForPath(args: {
@@ -139,7 +173,7 @@ export async function getAgentsMdReminderForPath(args: {
     projectRoot: string;
     isTruncated: boolean;
     visibilityTracker: AgentsMdVisibilityTracker;
-    resolver: ReturnType<typeof createAgentsMdResolver>;
+    resolver: AgentsMdResolver;
 }): Promise<AgentsMdReminderContext> {
     const files = await args.resolver.findFiles(args.targetPath, args.projectRoot);
     const newFiles = files.filter((file) => !args.visibilityTracker.isVisible(file.path));
@@ -148,6 +182,7 @@ export async function getAgentsMdReminderForPath(args: {
         return {
             content: "",
             hasReminder: false,
+            includedFiles: [],
         };
     }
 
@@ -158,7 +193,22 @@ export async function getAgentsMdReminderForPath(args: {
     }
 
     return {
-        content: formatSystemReminder(newFiles, args.projectRoot),
+        content: formatAgentsMdReminder(newFiles, args.projectRoot),
         hasReminder: true,
+        includedFiles: newFiles,
     };
+}
+
+export async function hasRootAgentsMd(
+    projectRoot: string,
+    resolver: AgentsMdResolver = createAgentsMdResolver()
+): Promise<boolean> {
+    return resolver.hasRootAgentsMd(projectRoot);
+}
+
+export async function getRootAgentsMdContent(
+    projectRoot: string,
+    resolver: AgentsMdResolver = createAgentsMdResolver()
+): Promise<string | null> {
+    return resolver.getRootAgentsMdContent(projectRoot);
 }

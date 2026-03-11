@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process";
 import { stat } from "node:fs/promises";
-import { relative } from "node:path";
+import { relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { tool } from "ai";
 import { z } from "zod";
 import { createErrorText } from "../internal/errors";
 import { resolveFsToolsOptions } from "../internal/options";
+import type { ResolvedFsToolsOptions } from "../internal/options";
 import {
     buildOutsideRootMessage,
     isPathAccessible,
@@ -22,29 +23,39 @@ const execFileAsync = promisify(execFile);
 const MAX_CONTENT_SIZE = 50_000;
 const COMMAND_MAX_BUFFER = 10 * 1024 * 1024;
 
-const fsGrepInputSchema = z.object({
-    pattern: z.string().describe("Regex pattern to search for."),
-    description: z.string().optional().describe("Human-readable reason for the search."),
-    path: z.string().optional().describe("Absolute file or directory to search within."),
-    output_mode: z
-        .enum(["files_with_matches", "content", "count"])
-        .optional()
-        .describe("Output mode. Defaults to files_with_matches."),
-    glob: z.string().optional().describe("Glob filter for files."),
-    type: z.string().optional().describe("Ripgrep file type filter."),
-    "-i": z.boolean().optional().describe("Case-insensitive search."),
-    "-n": z.boolean().optional().describe("Show line numbers in content mode."),
-    "-A": z.number().int().optional().describe("Lines of trailing context in content mode."),
-    "-B": z.number().int().optional().describe("Lines of leading context in content mode."),
-    "-C": z.number().int().optional().describe("Lines of surrounding context in content mode."),
-    multiline: z.boolean().optional().describe("Enable multiline matches."),
-    head_limit: z.number().int().optional().describe("Maximum number of results. Use 0 for unlimited."),
-    offset: z.number().int().optional().describe("Skip the first N results."),
-    allowOutsideWorkingDirectory: z
-        .boolean()
-        .optional()
-        .describe("Set to true to search outside the configured roots."),
-});
+function buildGrepInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
+    const baseFields = {
+        pattern: z.string().describe("Regex pattern to search for."),
+        description: z.string().optional().describe("Human-readable reason for the search."),
+        path: z.string().optional().describe("Absolute file or directory to search within."),
+        output_mode: z
+            .enum(["files_with_matches", "content", "count"])
+            .optional()
+            .describe("Output mode. Defaults to files_with_matches."),
+        glob: z.string().optional().describe("Glob filter for files."),
+        type: z.string().optional().describe("Ripgrep file type filter."),
+        "-i": z.boolean().optional().describe("Case-insensitive search."),
+        "-n": z.boolean().optional().describe("Show line numbers in content mode."),
+        "-A": z.number().int().optional().describe("Lines of trailing context in content mode."),
+        "-B": z.number().int().optional().describe("Lines of leading context in content mode."),
+        "-C": z.number().int().optional().describe("Lines of surrounding context in content mode."),
+        multiline: z.boolean().optional().describe("Enable multiline matches."),
+        head_limit: z.number().int().optional().describe("Maximum number of results. Use 0 for unlimited."),
+        offset: z.number().int().optional().describe("Skip the first N results."),
+    };
+
+    if (resolvedOptions.strictContainment) {
+        return z.object(baseFields);
+    }
+
+    return z.object({
+        ...baseFields,
+        allowOutsideWorkingDirectory: z
+            .boolean()
+            .optional()
+            .describe("Set to true to search outside the configured roots."),
+    });
+}
 
 let ripgrepAvailability: Promise<boolean> | undefined;
 
@@ -112,7 +123,7 @@ function buildRipgrepArgs(input: FsGrepInput, searchPath: string): string[] {
     return args;
 }
 
-function buildGrepArgs(input: FsGrepInput, searchPath: string): string[] {
+function buildGrepFallbackArgs(input: FsGrepInput, searchPath: string): string[] {
     const args = ["-r", "-E"];
     const outputMode = input.output_mode ?? "files_with_matches";
 
@@ -259,12 +270,22 @@ function relativizeGrepOutput(
 
 export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, string | ErrorTextResult> {
     const resolvedOptions = resolveFsToolsOptions(options);
+    const toolName = `${resolvedOptions.namePrefix}_grep`;
 
     const toolInstance = tool({
         description:
+            resolvedOptions.descriptions?.grep ??
             "Search file contents with ripgrep, with grep as a fallback. Supports content, file-list, and count modes.",
-        inputSchema: fsGrepInputSchema,
+        inputSchema: buildGrepInputSchema(resolvedOptions),
         execute: async (input: FsGrepInput) => {
+            if (resolvedOptions.beforeExecute) {
+                try {
+                    resolvedOptions.beforeExecute(toolName, input as unknown as Record<string, unknown>);
+                } catch (error) {
+                    return createErrorText(error instanceof Error ? error.message : String(error));
+                }
+            }
+
             const description = input.description?.trim();
             if (!description) {
                 return createErrorText("description is required");
@@ -274,12 +295,17 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                 return createErrorText("pattern is required");
             }
 
-            const searchPath = input.path ?? resolvedOptions.workingDirectory;
+            let searchPath = input.path ?? resolvedOptions.workingDirectory;
+            if (resolvedOptions.strictContainment && !searchPath.startsWith("/")) {
+                searchPath = resolve(resolvedOptions.workingDirectory, searchPath);
+            }
+
             if (!searchPath.startsWith("/")) {
                 return createErrorText(`Path must be absolute. Received: ${searchPath}`);
             }
 
-            if (!isPathAccessible(searchPath, resolvedOptions, input.allowOutsideWorkingDirectory)) {
+            const allowOutside = resolvedOptions.strictContainment ? false : input.allowOutsideWorkingDirectory;
+            if (!isPathAccessible(searchPath, resolvedOptions, allowOutside)) {
                 return createErrorText(buildOutsideRootMessage(searchPath, resolvedOptions));
             }
 
@@ -312,7 +338,7 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                 const executable = hasRipgrep ? "rg" : "grep";
                 const args = hasRipgrep
                     ? buildRipgrepArgs(input, searchPath)
-                    : buildGrepArgs(input, searchPath);
+                    : buildGrepFallbackArgs(input, searchPath);
 
                 let lines: string[];
                 try {
@@ -327,7 +353,7 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                             executable,
                             hasRipgrep
                                 ? buildRipgrepArgs({ ...input, output_mode: "files_with_matches" }, searchPath)
-                                : buildGrepArgs({ ...input, output_mode: "files_with_matches" }, searchPath),
+                                : buildGrepFallbackArgs({ ...input, output_mode: "files_with_matches" }, searchPath),
                             resolvedOptions.workingDirectory,
                         );
 
@@ -338,8 +364,8 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                         );
                         const paginatedFallback = applyPagination(fallbackProcessed, offset, headLimit);
                         const prefix =
-                            "Content output exceeded the command buffer.\n" +
-                            `Showing matching files instead (${fallbackProcessed.length} total):\n\n`;
+                            "Content output would exceed the size limit.\n" +
+                            "Returning matching files instead:\n\n";
                         const availableSpace = MAX_CONTENT_SIZE - Buffer.byteLength(prefix, "utf8") - 200;
                         const { truncated, originalLength } = truncateToMaxSize(
                             paginatedFallback.join("\n"),
@@ -372,8 +398,8 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                         const filePaths = extractFilePathsFromContent(processedLines);
                         const paginatedFilePaths = applyPagination(filePaths, offset, headLimit);
                         const prefix =
-                            `Content output would exceed ${MAX_CONTENT_SIZE} bytes (actual: ${sizeInBytes}).\n` +
-                            `Showing matching files instead (${filePaths.length} total):\n\n`;
+                            "Content output would exceed the size limit.\n" +
+                            "Returning matching files instead:\n\n";
                         const availableSpace = MAX_CONTENT_SIZE - Buffer.byteLength(prefix, "utf8") - 200;
                         const { truncated, originalLength } = truncateToMaxSize(
                             paginatedFilePaths.join("\n"),
@@ -397,15 +423,6 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                 );
             }
         },
-    });
-
-    Object.defineProperty(toolInstance, "getHumanReadableContent", {
-        value: ({ pattern, path, description }: FsGrepInput) => {
-            const location = path ? ` in ${path}` : "";
-            return `Searching for "${pattern}"${location} (${description ?? "no description"})`;
-        },
-        enumerable: false,
-        configurable: true,
     });
 
     return toolInstance as FsTool<FsGrepInput, string | ErrorTextResult>;

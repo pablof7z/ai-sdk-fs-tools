@@ -67,24 +67,20 @@ export function isPathAccessible(
     return allowedRoots.some((root) => isPathWithinDirectory(inputPath, root));
 }
 
-export function isProtectedWritePath(
-    inputPath: string,
-    options: ResolvedFsToolsOptions,
-): boolean {
-    return options.protectedWriteRoots.some((root) => isPathWithinDirectory(inputPath, root));
-}
-
 export function buildOutsideRootMessage(
     inputPath: string,
     options: ResolvedFsToolsOptions,
 ): string {
+    if (options.formatOutsideRootsError) {
+        return options.formatOutsideRootsError(inputPath, options.workingDirectory);
+    }
+
     const roots = [options.workingDirectory, ...options.allowedRoots];
     const rootList = roots.join(", ");
-    return `Path "${inputPath}" is outside the configured roots (${rootList}). Retry with allowOutsideWorkingDirectory: true if this is intentional.`;
-}
 
-export function buildProtectedWriteMessage(
-    inputPath: string,
-): string {
-    return `Path "${inputPath}" is within a protectedWriteRoots boundary and cannot be modified by fs_write or fs_edit.`;
+    if (options.strictContainment) {
+        return `Path "${inputPath}" is outside the configured roots (${rootList}).`;
+    }
+
+    return `Path "${inputPath}" is outside the configured roots (${rootList}). Retry with allowOutsideWorkingDirectory: true if this is intentional.`;
 }

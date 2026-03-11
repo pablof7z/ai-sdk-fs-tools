@@ -4,6 +4,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createErrorText } from "../internal/errors";
 import { resolveFsToolsOptions } from "../internal/options";
+import type { ResolvedFsToolsOptions } from "../internal/options";
 import {
     buildOutsideRootMessage,
     isPathAccessible,
@@ -20,17 +21,27 @@ const DEFAULT_EXCLUDED_DIRECTORIES = new Set([
     "coverage",
 ]);
 
-const fsGlobInputSchema = z.object({
-    pattern: z.string().describe("Glob pattern to match files."),
-    description: z.string().optional().describe("Human-readable reason for the search."),
-    path: z.string().optional().describe("Absolute directory to search within. Defaults to workingDirectory."),
-    head_limit: z.number().int().optional().describe("Maximum number of results. Use 0 for unlimited."),
-    offset: z.number().int().optional().describe("Skip the first N results."),
-    allowOutsideWorkingDirectory: z
-        .boolean()
-        .optional()
-        .describe("Set to true to search outside the configured roots."),
-});
+function buildGlobInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
+    const baseFields = {
+        pattern: z.string().describe("Glob pattern to match files."),
+        description: z.string().optional().describe("Human-readable reason for the search."),
+        path: z.string().optional().describe("Absolute directory to search within. Defaults to workingDirectory."),
+        head_limit: z.number().int().optional().describe("Maximum number of results. Use 0 for unlimited."),
+        offset: z.number().int().optional().describe("Skip the first N results."),
+    };
+
+    if (resolvedOptions.strictContainment) {
+        return z.object(baseFields);
+    }
+
+    return z.object({
+        ...baseFields,
+        allowOutsideWorkingDirectory: z
+            .boolean()
+            .optional()
+            .describe("Set to true to search outside the configured roots."),
+    });
+}
 
 function shouldExcludeMatch(matchPath: string): boolean {
     return matchPath.split(sep).some((segment) => DEFAULT_EXCLUDED_DIRECTORIES.has(segment));
@@ -38,12 +49,22 @@ function shouldExcludeMatch(matchPath: string): boolean {
 
 export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, string | ErrorTextResult> {
     const resolvedOptions = resolveFsToolsOptions(options);
+    const toolName = `${resolvedOptions.namePrefix}_glob`;
 
     const toolInstance = tool({
         description:
+            resolvedOptions.descriptions?.glob ??
             "Fast glob-based file search. Returns matching file paths relative to workingDirectory, sorted by most recently modified first.",
-        inputSchema: fsGlobInputSchema,
+        inputSchema: buildGlobInputSchema(resolvedOptions),
         execute: async (input: FsGlobInput) => {
+            if (resolvedOptions.beforeExecute) {
+                try {
+                    resolvedOptions.beforeExecute(toolName, input as unknown as Record<string, unknown>);
+                } catch (error) {
+                    return createErrorText(error instanceof Error ? error.message : String(error));
+                }
+            }
+
             const description = input.description?.trim();
             if (!description) {
                 return createErrorText("description is required");
@@ -53,12 +74,17 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
                 return createErrorText("pattern is required");
             }
 
-            const searchPath = input.path ?? resolvedOptions.workingDirectory;
+            let searchPath = input.path ?? resolvedOptions.workingDirectory;
+            if (resolvedOptions.strictContainment && !searchPath.startsWith("/")) {
+                searchPath = resolve(resolvedOptions.workingDirectory, searchPath);
+            }
+
             if (!searchPath.startsWith("/")) {
                 return createErrorText(`Path must be absolute. Received: ${searchPath}`);
             }
 
-            if (!isPathAccessible(searchPath, resolvedOptions, input.allowOutsideWorkingDirectory)) {
+            const allowOutside = resolvedOptions.strictContainment ? false : input.allowOutsideWorkingDirectory;
+            if (!isPathAccessible(searchPath, resolvedOptions, allowOutside)) {
                 return createErrorText(buildOutsideRootMessage(searchPath, resolvedOptions));
             }
 
@@ -76,7 +102,7 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
                 return createErrorText(`File or directory not found: ${searchPath}`);
             }
             if (!pathStats.isDirectory()) {
-                return createErrorText(`fs_glob requires a directory path. Received file: ${searchPath}`);
+                return createErrorText(`${toolName} requires a directory path. Received file: ${searchPath}`);
             }
 
             const matches: Array<{ path: string; mtimeMs: number }> = [];
@@ -124,15 +150,6 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
 
             return body;
         },
-    });
-
-    Object.defineProperty(toolInstance, "getHumanReadableContent", {
-        value: ({ pattern, path, description }: FsGlobInput) => {
-            const location = path ? ` in ${path}` : "";
-            return `Finding files matching "${pattern}"${location} (${description ?? "no description"})`;
-        },
-        enumerable: false,
-        configurable: true,
     });
 
     return toolInstance as FsTool<FsGlobInput, string | ErrorTextResult>;
