@@ -32,6 +32,16 @@ describe("agents-md helpers", () => {
         expect(await getRootAgentsMdContent(projectRoot, resolver)).toBe("# Root rule");
     });
 
+    it("re-reads updated root AGENTS.md content instead of serving stale data", async () => {
+        const resolver = createAgentsMdResolver();
+
+        await writeTextFile(join(projectRoot, "AGENTS.md"), "# Root rule");
+        expect(await getRootAgentsMdContent(projectRoot, resolver)).toBe("# Root rule");
+
+        await writeTextFile(join(projectRoot, "AGENTS.md"), "# Updated rule");
+        expect(await getRootAgentsMdContent(projectRoot, resolver)).toBe("# Updated rule");
+    });
+
     it("returns included files when building a reminder for a path", async () => {
         await writeTextFile(join(projectRoot, "AGENTS.md"), "# Root rule");
         await writeTextFile(join(projectRoot, "src", "AGENTS.md"), "# Src rule");

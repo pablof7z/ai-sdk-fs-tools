@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { wrapInSystemReminder } from "ai-sdk-system-reminders";
@@ -46,8 +45,6 @@ export function createAgentsMdVisibilityTracker(): AgentsMdVisibilityTracker {
 }
 
 export function createAgentsMdResolver(): AgentsMdResolver {
-    const contentCache = new Map<string, string | null>();
-
     async function isDirectory(targetPath: string): Promise<boolean> {
         try {
             return (await stat(targetPath)).isDirectory();
@@ -57,18 +54,8 @@ export function createAgentsMdResolver(): AgentsMdResolver {
     }
 
     async function readAgentsMdFile(absolutePath: string): Promise<string | null> {
-        if (contentCache.has(absolutePath)) {
-            return contentCache.get(absolutePath) ?? null;
-        }
-
         try {
-            if (!existsSync(absolutePath)) {
-                return null;
-            }
-
-            const content = await readFile(absolutePath, "utf8");
-            contentCache.set(absolutePath, content);
-            return content;
+            return await readFile(absolutePath, "utf8");
         } catch {
             return null;
         }
@@ -140,7 +127,7 @@ export function createAgentsMdResolver(): AgentsMdResolver {
     }
 
     function clearCache(): void {
-        contentCache.clear();
+        // No-op retained for backwards compatibility with older callers.
     }
 
     return {

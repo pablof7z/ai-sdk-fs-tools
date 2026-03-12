@@ -1,6 +1,6 @@
 {
   "name": "ai-sdk-fs-tools",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Portable AI SDK filesystem tools with optional AGENTS.md reminders",
   "type": "module",
   "main": "./dist/index.js",
@@ -56,7 +56,7 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
-    "ai-sdk-system-reminders": "^0.1.0"
+    "ai-sdk-system-reminders": "^0.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
