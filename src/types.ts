@@ -18,6 +18,7 @@ export type LoadToolResultHook = (id: string) => Promise<string>;
 
 export interface FsToolsOptions {
     workingDirectory: string;
+    agentId?: string;
     allowedRoots?: string[];
     namePrefix?: string;
     descriptions?: {

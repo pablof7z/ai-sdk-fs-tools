@@ -120,6 +120,25 @@ type FsToolsOptions = {
 - Can opt out with `allowOutsideWorkingDirectory: true`
 - Always block writes inside `protectedWriteRoots`
 
+#### Concurrency Protection
+
+Both `fs_edit` and `fs_write` enforce read-before-write semantics with per-agent tracking:
+
+- **`fs_edit`**: Always requires a prior `fs_read` of the file. Detects if the file was modified since the last read.
+- **`fs_write`**: Requires prior `fs_read` only when overwriting existing files. New files can be created freely.
+
+**Per-agent tracking**: Set `agentId` in options to enable multi-agent safety. Each agent maintains its own view of file state:
+
+```ts
+// Agent 1's tools
+const tools1 = createFsTools({ workingDirectory: "/project", agentId: "agent-1" });
+
+// Agent 2's tools  
+const tools2 = createFsTools({ workingDirectory: "/project", agentId: "agent-2" });
+```
+
+After a successful write, the same agent can continue editing without re-reading. However, if another agent modified the file, edits will fail until the file is re-read.
+
 ### `fs_glob`
 
 - Uses Node's native glob support

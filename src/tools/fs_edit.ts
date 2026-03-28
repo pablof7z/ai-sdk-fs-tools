@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { tool } from "ai";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import {
     getFsErrorDescription,
     isExpectedFsError,
 } from "../internal/errors";
+import { getTrackedMtime, hasBeenRead, updateTracking } from "../internal/read-tracker";
 import { resolveFsToolsOptions } from "../internal/options";
 import type { ResolvedFsToolsOptions } from "../internal/options";
 import {
@@ -79,7 +80,23 @@ export function createFsEditTool(options: FsToolsOptions): FsTool<FsEditInput, s
                 return createErrorText(buildOutsideRootMessage(effectivePath, resolvedOptions));
             }
 
+            // Concurrency protection: require prior read
+            if (!hasBeenRead(resolvedOptions.agentId, effectivePath)) {
+                return createErrorText(
+                    `File must be read with fs_read before editing: ${effectivePath}`
+                );
+            }
+
             try {
+                // Check for concurrent modification
+                const currentStats = await stat(effectivePath);
+                const trackedMtime = getTrackedMtime(resolvedOptions.agentId, effectivePath);
+                if (trackedMtime !== undefined && currentStats.mtime.getTime() !== trackedMtime) {
+                    return createErrorText(
+                        `File was modified since last read: ${effectivePath}. Read it again before editing.`
+                    );
+                }
+
                 const content = await readFile(effectivePath, "utf8");
 
                 if (!content.includes(input.old_string)) {
@@ -111,6 +128,9 @@ export function createFsEditTool(options: FsToolsOptions): FsTool<FsEditInput, s
                 }
 
                 await writeFile(effectivePath, nextContent, "utf8");
+                // Update tracking with new mtime so same agent can keep editing
+                const newStats = await stat(effectivePath);
+                updateTracking(resolvedOptions.agentId, effectivePath, newStats.mtime);
                 return `Successfully replaced ${replacementCount} occurrence(s) in ${effectivePath}`;
             } catch (error) {
                 if (isExpectedFsError(error)) {

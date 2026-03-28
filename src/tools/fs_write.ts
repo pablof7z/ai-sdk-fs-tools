@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { tool } from "ai";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import {
     getFsErrorDescription,
     isExpectedFsError,
 } from "../internal/errors";
+import { getTrackedMtime, hasBeenRead, updateTracking } from "../internal/read-tracker";
 import { resolveFsToolsOptions } from "../internal/options";
 import type { ResolvedFsToolsOptions } from "../internal/options";
 import {
@@ -74,8 +75,36 @@ export function createFsWriteTool(options: FsToolsOptions): FsTool<FsWriteInput,
             }
 
             try {
+                // Check if file exists - if so, require prior read
+                let fileExists = false;
+                try {
+                    const currentStats = await stat(effectivePath);
+                    fileExists = true;
+                    
+                    // Concurrency protection for existing files
+                    if (!hasBeenRead(resolvedOptions.agentId, effectivePath)) {
+                        return createErrorText(
+                            `File must be read with fs_read before overwriting: ${effectivePath}`
+                        );
+                    }
+                    
+                    const trackedMtime = getTrackedMtime(resolvedOptions.agentId, effectivePath);
+                    if (trackedMtime !== undefined && currentStats.mtime.getTime() !== trackedMtime) {
+                        return createErrorText(
+                            `File was modified since last read: ${effectivePath}. Read it again before writing.`
+                        );
+                    }
+                } catch {
+                    // File doesn't exist - that's fine for new files
+                }
+
                 await mkdir(dirname(effectivePath), { recursive: true });
                 await writeFile(effectivePath, input.content, "utf8");
+                
+                // Update tracking with new mtime so same agent can keep editing
+                const newStats = await stat(effectivePath);
+                updateTracking(resolvedOptions.agentId, effectivePath, newStats.mtime);
+                
                 return `Successfully wrote ${input.content.length} bytes to ${effectivePath}`;
             } catch (error) {
                 if (isExpectedFsError(error)) {

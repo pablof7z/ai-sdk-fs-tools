@@ -7,6 +7,7 @@ export interface ResolvedAgentsMdOptions {
 
 export interface ResolvedFsToolsOptions extends Omit<FsToolsOptions, "agentsMd"> {
     workingDirectory: string;
+    agentId: string;
     allowedRoots: string[];
     namePrefix: string;
     strictContainment: boolean;
@@ -35,6 +36,7 @@ export function resolveFsToolsOptions(options: FsToolsOptions): ResolvedFsToolsO
     return {
         ...options,
         workingDirectory,
+        agentId: options.agentId ?? "default",
         allowedRoots,
         namePrefix: options.namePrefix ?? "fs",
         strictContainment: options.strictContainment ?? false,

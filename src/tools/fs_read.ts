@@ -14,6 +14,7 @@ import {
     isExpectedFsError,
     isExpectedNotFoundError,
 } from "../internal/errors";
+import { trackRead } from "../internal/read-tracker";
 import { resolveFsToolsOptions } from "../internal/options";
 import type { ResolvedFsToolsOptions } from "../internal/options";
 import {
@@ -86,6 +87,9 @@ async function executePathRead(
             isTruncated: false,
         };
     }
+
+    // Track mtime for concurrency protection
+    trackRead(options.agentId, path, fileStats.mtime);
 
     const rawContent = await readFile(path, "utf8");
     const lines = rawContent.split("\n");
