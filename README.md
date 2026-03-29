@@ -4,17 +4,17 @@ Portable filesystem tools for the Vercel AI SDK. The package exposes `fs_read`, 
 
 ## Status
 
-The repository is published on GitHub at [pablof7z/ai-sdk-fs-tools](https://github.com/pablof7z/ai-sdk-fs-tools).
+The source repository lives at [pablof7z/ai-sdk-fs-tools](https://github.com/pablof7z/ai-sdk-fs-tools).
 
-This package is GitHub-published only for now. Install it directly from GitHub:
+Install from npm:
 
 ```bash
-pnpm add github:pablof7z/ai-sdk-fs-tools
+pnpm add ai-sdk-fs-tools
 ```
 
 ## Features
 
-- Shared sandbox config for all tools: `workingDirectory`, `allowedRoots`, and `protectedWriteRoots`
+- Shared sandbox config for all tools: `workingDirectory` and `allowedRoots`
 - Symlink-safe root containment checks
 - `fs_read` support for file reads, directory listings, tool-result hooks, and optional analysis hooks
 - Built-in hierarchical `AGENTS.md` reminders appended as `<system-reminder>` blocks
@@ -32,7 +32,6 @@ import { generateText, stepCountIs } from "ai";
 const tools = createFsTools({
   workingDirectory: "/workspace/project",
   allowedRoots: ["/workspace/shared"],
-  protectedWriteRoots: ["/workspace/project/reports"],
   agentsMd: {
     projectRoot: "/workspace/project",
   },
@@ -63,7 +62,6 @@ const fs_read = createFsReadTool({
 
 const fs_write = createFsWriteTool({
   workingDirectory: "/workspace/project",
-  protectedWriteRoots: ["/workspace/project/reports"],
 });
 ```
 
@@ -91,7 +89,6 @@ Returns:
 type FsToolsOptions = {
   workingDirectory: string;
   allowedRoots?: string[];
-  protectedWriteRoots?: string[];
   agentsMd?: false | {
     projectRoot?: string;
   };
@@ -109,6 +106,7 @@ type FsToolsOptions = {
 - Accepts exactly one of `path` or `tool`
 - `path` must be absolute
 - Returns numbered file content or a directory listing
+- Defaults to 250 lines per read; use `offset` and `limit` to page through larger files
 - Appends hierarchical `AGENTS.md` reminders by default
 - Disable reminders with `agentsMd: false`
 - `prompt` requires `analyzeContent`
@@ -118,7 +116,6 @@ type FsToolsOptions = {
 
 - Respect `allowedRoots`
 - Can opt out with `allowOutsideWorkingDirectory: true`
-- Always block writes inside `protectedWriteRoots`
 
 #### Concurrency Protection
 
@@ -143,12 +140,14 @@ After a successful write, the same agent can continue editing without re-reading
 
 - Uses Node's native glob support
 - Excludes `node_modules`, `.git`, `dist`, `build`, `.next`, and `coverage`
+- Applies `offset` and `head_limit` during traversal instead of collecting every match first
 - Returns paths relative to `workingDirectory`
 
 ### `fs_grep`
 
 - Uses `rg` when available, with `grep` fallback
 - Supports `files_with_matches`, `content`, and `count`
+- Stops reading once it has enough results for the requested page when `head_limit` is set
 - Falls back to file-list output when content exceeds the output budget
 
 ## Development

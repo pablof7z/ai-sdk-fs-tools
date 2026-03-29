@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -21,7 +21,6 @@ import type {
 
 const execFileAsync = promisify(execFile);
 const MAX_CONTENT_SIZE = 50_000;
-const COMMAND_MAX_BUFFER = 10 * 1024 * 1024;
 
 function buildGrepInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
     const baseFields = {
@@ -176,17 +175,21 @@ function applyPagination<T>(items: T[], offset: number, limit: number): T[] {
     return limit === 0 ? sliced : sliced.slice(0, limit);
 }
 
-function extractFilePathsFromContent(lines: string[]): string[] {
-    const uniquePaths = new Set<string>();
-
-    for (const line of lines) {
-        const firstColon = line.indexOf(":");
-        if (firstColon > 0) {
-            uniquePaths.add(line.slice(0, firstColon));
-        }
+function parseContentLine(
+    line: string,
+): { path: string; lineNumber: string; separator: string; contentSeparator: string; content: string } | null {
+    const match = /^(.+?)([:\-])(\d+)([:\-])(.*)$/.exec(line);
+    if (!match) {
+        return null;
     }
 
-    return Array.from(uniquePaths);
+    return {
+        path: match[1],
+        separator: match[2],
+        lineNumber: match[3],
+        contentSeparator: match[4],
+        content: match[5],
+    };
 }
 
 function truncateToMaxSize(text: string, maxBytes: number): { truncated: string; originalLength: number } {
@@ -221,26 +224,117 @@ async function runSearchCommand(
     executable: "rg" | "grep",
     args: string[],
     cwd: string,
-): Promise<string[]> {
-    try {
-        const { stdout } = await execFileAsync(executable, args, {
+    maxLines?: number,
+): Promise<{ lines: string[]; truncated: boolean }> {
+    return await new Promise((resolve, reject) => {
+        const child = spawn(executable, args, {
             cwd,
-            timeout: 30_000,
-            maxBuffer: COMMAND_MAX_BUFFER,
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        const lines: string[] = [];
+        let truncated = false;
+        let stoppedEarly = false;
+        let stdoutBuffer = "";
+        let stderr = "";
+        let settled = false;
+
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+
+        const finish = (result: { lines: string[]; truncated: boolean }) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            resolve(result);
+        };
+
+        const fail = (error: Error) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            reject(error);
+        };
+
+        const stopEarly = () => {
+            if (stoppedEarly || settled) {
+                return;
+            }
+            stoppedEarly = true;
+            truncated = true;
+            child.kill("SIGTERM");
+        };
+
+        const pushLine = (line: string) => {
+            if (!line) {
+                return;
+            }
+
+            lines.push(line);
+            if (maxLines !== undefined && lines.length >= maxLines) {
+                stopEarly();
+            }
+        };
+
+        const flushStdout = (final: boolean) => {
+            while (!settled) {
+                const newlineIndex = stdoutBuffer.indexOf("\n");
+                if (newlineIndex === -1) {
+                    break;
+                }
+
+                const rawLine = stdoutBuffer.slice(0, newlineIndex);
+                stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+                pushLine(rawLine.replace(/\r$/, ""));
+            }
+
+            if (final && !settled && stdoutBuffer.length > 0) {
+                pushLine(stdoutBuffer.replace(/\r$/, ""));
+                stdoutBuffer = "";
+            }
+        };
+
+        child.stdout.on("data", (chunk: string) => {
+            stdoutBuffer += chunk;
+            flushStdout(false);
         });
 
-        if (!stdout.trim()) {
-            return [];
-        }
+        child.stderr.on("data", (chunk: string) => {
+            stderr += chunk;
+        });
 
-        return stdout.trim().split("\n").filter(Boolean);
-    } catch (error) {
-        const errorCode = (error as { code?: number | string }).code;
-        if (errorCode === 1) {
-            return [];
-        }
-        throw error;
-    }
+        child.on("error", (error) => {
+            if (stoppedEarly) {
+                finish({ lines, truncated: true });
+                return;
+            }
+
+            fail(new Error(`Failed to run ${executable}: ${error.message}`));
+        });
+
+        child.on("close", (code, signal) => {
+            flushStdout(true);
+
+            if (stoppedEarly) {
+                finish({ lines, truncated: true });
+                return;
+            }
+
+            if (code === 0) {
+                finish({ lines, truncated });
+                return;
+            }
+
+            if (code === 1) {
+                finish({ lines: [], truncated: false });
+                return;
+            }
+
+            const detail = stderr.trim() || `${executable} exited with code ${code}${signal ? ` (${signal})` : ""}`;
+            fail(new Error(detail));
+        });
+    });
 }
 
 function relativizeGrepOutput(
@@ -254,17 +348,20 @@ function relativizeGrepOutput(
         }
 
         if (outputMode === "count") {
-            const separatorIndex = line.lastIndexOf(":");
-            if (separatorIndex > 0) {
-                const filePath = line.slice(0, separatorIndex);
-                const count = line.slice(separatorIndex + 1);
-                return `${relative(workingDirectory, filePath)}:${count}`;
+            const countMatch = /^(.+):(\d+)$/.exec(line);
+            if (countMatch) {
+                return `${relative(workingDirectory, countMatch[1])}:${countMatch[2]}`;
             }
             return line;
         }
 
-        const prefix = `${workingDirectory}/`;
-        return line.startsWith(prefix) ? line.slice(prefix.length) : line;
+        const parsed = parseContentLine(line);
+        if (!parsed) {
+            return line;
+        }
+
+        const relativePath = relative(workingDirectory, parsed.path);
+        return `${relativePath}${parsed.separator}${parsed.lineNumber}${parsed.contentSeparator}${parsed.content}`;
     });
 }
 
@@ -339,53 +436,20 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                 const args = hasRipgrep
                     ? buildRipgrepArgs(input, searchPath)
                     : buildGrepFallbackArgs(input, searchPath);
+                const maxLines = headLimit === 0 ? undefined : offset + headLimit + 1;
+                const searchResult = await runSearchCommand(
+                    executable,
+                    args,
+                    resolvedOptions.workingDirectory,
+                    maxLines,
+                );
 
-                let lines: string[];
-                try {
-                    lines = await runSearchCommand(executable, args, resolvedOptions.workingDirectory);
-                } catch (error) {
-                    if (
-                        outputMode === "content" &&
-                        error instanceof Error &&
-                        error.message.includes("maxBuffer")
-                    ) {
-                        const fallbackLines = await runSearchCommand(
-                            executable,
-                            hasRipgrep
-                                ? buildRipgrepArgs({ ...input, output_mode: "files_with_matches" }, searchPath)
-                                : buildGrepFallbackArgs({ ...input, output_mode: "files_with_matches" }, searchPath),
-                            resolvedOptions.workingDirectory,
-                        );
-
-                        const fallbackProcessed = relativizeGrepOutput(
-                            fallbackLines,
-                            resolvedOptions.workingDirectory,
-                            "files_with_matches",
-                        );
-                        const paginatedFallback = applyPagination(fallbackProcessed, offset, headLimit);
-                        const prefix =
-                            "Content output would exceed the size limit.\n" +
-                            "Returning matching files instead:\n\n";
-                        const availableSpace = MAX_CONTENT_SIZE - Buffer.byteLength(prefix, "utf8") - 200;
-                        const { truncated, originalLength } = truncateToMaxSize(
-                            paginatedFallback.join("\n"),
-                            availableSpace,
-                        );
-                        const note = originalLength > availableSpace
-                            ? `\n\n[Output truncated to ${MAX_CONTENT_SIZE} bytes]`
-                            : "";
-                        return `${prefix}${truncated}${note}`;
-                    }
-
-                    throw error;
-                }
-
-                if (lines.length === 0) {
+                if (searchResult.lines.length === 0) {
                     return `No matches found for pattern: ${input.pattern}`;
                 }
 
                 const processedLines = relativizeGrepOutput(
-                    lines,
+                    searchResult.lines,
                     resolvedOptions.workingDirectory,
                     outputMode,
                 );
@@ -395,25 +459,38 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                 if (outputMode === "content") {
                     const sizeInBytes = Buffer.byteLength(joined, "utf8");
                     if (sizeInBytes > MAX_CONTENT_SIZE) {
-                        const filePaths = extractFilePathsFromContent(processedLines);
+                        const fallbackResult = await runSearchCommand(
+                            executable,
+                            hasRipgrep
+                                ? buildRipgrepArgs({ ...input, output_mode: "files_with_matches" }, searchPath)
+                                : buildGrepFallbackArgs({ ...input, output_mode: "files_with_matches" }, searchPath),
+                            resolvedOptions.workingDirectory,
+                            maxLines,
+                        );
+                        const filePaths = relativizeGrepOutput(
+                            fallbackResult.lines,
+                            resolvedOptions.workingDirectory,
+                            "files_with_matches",
+                        );
                         const paginatedFilePaths = applyPagination(filePaths, offset, headLimit);
                         const prefix =
                             "Content output would exceed the size limit.\n" +
                             "Returning matching files instead:\n\n";
                         const availableSpace = MAX_CONTENT_SIZE - Buffer.byteLength(prefix, "utf8") - 200;
+                        const hasMoreFiles = fallbackResult.truncated;
                         const { truncated, originalLength } = truncateToMaxSize(
                             paginatedFilePaths.join("\n"),
                             availableSpace,
                         );
-                        const note = originalLength > availableSpace
-                            ? `\n\n[Output truncated to ${MAX_CONTENT_SIZE} bytes]`
+                        const note = hasMoreFiles || originalLength > availableSpace
+                            ? `\n\n[Truncated: additional matching files omitted]`
                             : "";
                         return `${prefix}${truncated}${note}`;
                     }
                 }
 
-                if (paginatedLines.length < processedLines.length - offset) {
-                    return `${joined}\n\n[Truncated: showing ${paginatedLines.length} of ${processedLines.length - offset} results after offset]`;
+                if (searchResult.truncated) {
+                    return `${joined}\n\n[Truncated: showing ${paginatedLines.length} results after offset; additional results omitted]`;
                 }
 
                 return joined;

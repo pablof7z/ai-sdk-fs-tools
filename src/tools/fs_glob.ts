@@ -54,7 +54,7 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
     const toolInstance = tool({
         description:
             resolvedOptions.descriptions?.glob ??
-            "Fast glob-based file search. Returns matching file paths relative to workingDirectory, sorted by most recently modified first.",
+            "Fast glob-based file search. Returns matching file paths relative to workingDirectory in glob traversal order.",
         inputSchema: buildGlobInputSchema(resolvedOptions),
         execute: async (input: FsGlobInput) => {
             if (resolvedOptions.beforeExecute) {
@@ -105,7 +105,9 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
                 return createErrorText(`${toolName} requires a directory path. Received file: ${searchPath}`);
             }
 
-            const matches: Array<{ path: string; mtimeMs: number }> = [];
+            const matches: string[] = [];
+            const maxMatches = headLimit === 0 ? undefined : offset + headLimit + 1;
+            let truncated = false;
 
             try {
                 for await (const match of glob(input.pattern, { cwd: searchPath })) {
@@ -123,10 +125,12 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
                         continue;
                     }
 
-                    matches.push({
-                        path: relative(resolvedOptions.workingDirectory, fullPath),
-                        mtimeMs: matchStats.mtimeMs,
-                    });
+                    matches.push(relative(resolvedOptions.workingDirectory, fullPath));
+
+                    if (maxMatches !== undefined && matches.length >= maxMatches) {
+                        truncated = true;
+                        break;
+                    }
                 }
             } catch (error) {
                 return createErrorText(
@@ -138,14 +142,11 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
                 return `No files found matching pattern: ${input.pattern}`;
             }
 
-            matches.sort((left, right) => right.mtimeMs - left.mtimeMs);
-            const paginatedMatches = matches
-                .slice(offset)
-                .slice(0, headLimit === 0 ? undefined : headLimit);
-            const body = paginatedMatches.map((match) => match.path).join("\n");
+            const paginatedMatches = matches.slice(offset).slice(0, headLimit === 0 ? undefined : headLimit);
+            const body = paginatedMatches.join("\n");
 
-            if (paginatedMatches.length < matches.length - offset) {
-                return `${body}\n\n[Truncated: showing ${paginatedMatches.length} of ${matches.length - offset} files after offset]`;
+            if (truncated) {
+                return `${body}\n\n[Truncated: showing ${paginatedMatches.length} results after offset; additional files omitted]`;
             }
 
             return body;

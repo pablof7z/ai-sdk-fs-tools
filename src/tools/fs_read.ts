@@ -23,7 +23,7 @@ import {
 } from "../internal/path-security";
 import type { ErrorTextResult, FsReadInput, FsTool, FsToolsOptions } from "../types";
 
-const DEFAULT_LINE_LIMIT = 2000;
+const DEFAULT_LINE_LIMIT = 250;
 const MAX_LINE_LENGTH = 2000;
 
 function buildReadInputSchema(resolvedOptions: ResolvedFsToolsOptions) {

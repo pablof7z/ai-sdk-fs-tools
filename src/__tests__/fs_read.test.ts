@@ -36,6 +36,25 @@ describe("createFsReadTool", () => {
         expect(result).toContain("3\tline 3");
     });
 
+    it("pages large files with the default line limit", async () => {
+        const filePath = join(workingDirectory, "src", "large.txt");
+        const content = Array.from({ length: 300 }, (_, index) => `line ${index + 1}`).join("\n");
+        await writeTextFile(filePath, content);
+
+        const fsRead = createFsReadTool({ workingDirectory });
+        const result = await fsRead.execute({
+            path: filePath,
+            description: "inspect large file",
+        });
+
+        expect(result).toContain("1\tline 1");
+        expect(result).toContain("250\tline 250");
+        expect(result).not.toContain("251\tline 251");
+        expect(result).toContain(
+            "[Showing lines 1-250 of 300. 50 more lines available. Use offset=251 to continue.]",
+        );
+    });
+
     it("reads directory listings", async () => {
         await writeTextFile(join(workingDirectory, "a.txt"), "a");
         await writeTextFile(join(workingDirectory, "b.txt"), "b");
