@@ -3,6 +3,7 @@ import type { FsToolsOptions } from "../types";
 
 export interface ResolvedAgentsMdOptions {
     projectRoot: string;
+    skipRoot: boolean;
 }
 
 export interface ResolvedFsToolsOptions extends Omit<FsToolsOptions, "agentsMd"> {
@@ -31,6 +32,7 @@ export function resolveFsToolsOptions(options: FsToolsOptions): ResolvedFsToolsO
         ? false
         : {
             projectRoot: resolve(options.agentsMd?.projectRoot ?? workingDirectory),
+            skipRoot: options.agentsMd?.skipRoot ?? false,
         };
 
     return {

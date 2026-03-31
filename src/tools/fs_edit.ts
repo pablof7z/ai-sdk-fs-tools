@@ -20,7 +20,7 @@ import type { ErrorTextResult, FsEditInput, FsTool, FsToolsOptions } from "../ty
 function buildEditInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
     const baseFields = {
         path: z.string().describe("Absolute path to the file to edit."),
-        description: z.string().optional().describe("Human-readable reason for the edit."),
+        description: z.string().describe("Human-readable reason for the edit."),
         old_string: z.string().describe("Exact string to replace."),
         new_string: z.string().describe("Replacement string."),
         replace_all: z.boolean().optional().describe("Replace every occurrence instead of requiring a unique match."),
@@ -55,11 +55,6 @@ export function createFsEditTool(options: FsToolsOptions): FsTool<FsEditInput, s
                 } catch (error) {
                     return createErrorText(error instanceof Error ? error.message : String(error));
                 }
-            }
-
-            const description = input.description?.trim();
-            if (!description) {
-                return createErrorText("description is required");
             }
 
             let effectivePath = input.path;

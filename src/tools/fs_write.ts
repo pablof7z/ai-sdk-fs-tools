@@ -21,7 +21,7 @@ function buildWriteInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
     const baseFields = {
         path: z.string().describe("Absolute path to the file to write."),
         content: z.string().describe("Content to write to the file."),
-        description: z.string().optional().describe("Human-readable reason for the write."),
+        description: z.string().describe("Human-readable reason for the write."),
     };
 
     if (resolvedOptions.strictContainment) {
@@ -53,11 +53,6 @@ export function createFsWriteTool(options: FsToolsOptions): FsTool<FsWriteInput,
                 } catch (error) {
                     return createErrorText(error instanceof Error ? error.message : String(error));
                 }
-            }
-
-            const description = input.description?.trim();
-            if (!description) {
-                return createErrorText("description is required");
             }
 
             let effectivePath = input.path;

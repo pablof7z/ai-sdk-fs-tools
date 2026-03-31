@@ -30,7 +30,7 @@ function buildReadInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
     const baseFields = {
         path: z.string().optional().describe("Absolute path to the file or directory to read."),
         tool: z.string().optional().describe("Caller-defined tool result identifier to load via loadToolResult."),
-        description: z.string().optional().describe("Human-readable reason for the read."),
+        description: z.string().describe("Human-readable reason for the read."),
         offset: z.number().int().optional().describe("1-based line number to start from."),
         limit: z.number().int().optional().describe(`Maximum number of lines to read. Defaults to ${DEFAULT_LINE_LIMIT}.`),
         prompt: z.string().optional().describe("Optional analysis prompt processed through analyzeContent."),
@@ -155,11 +155,6 @@ export function createFsReadTool(options: FsToolsOptions): FsTool<FsReadInput, s
                 }
             }
 
-            const description = input.description?.trim();
-            if (!description) {
-                return createErrorText("description is required");
-            }
-
             if (Boolean(input.path) === Boolean(input.tool)) {
                 return createErrorText("Provide exactly one of 'path' or 'tool'.");
             }
@@ -201,9 +196,9 @@ export function createFsReadTool(options: FsToolsOptions): FsTool<FsReadInput, s
                         const reminder = await getAgentsMdReminderForPath({
                             targetPath: effectivePath!,
                             projectRoot: resolvedOptions.agentsMd.projectRoot,
-                            isTruncated: pathReadResult.isTruncated,
                             resolver: agentsMdResolver,
                             visibilityTracker,
+                            skipRoot: resolvedOptions.agentsMd.skipRoot,
                         });
 
                         if (reminder.hasReminder) {

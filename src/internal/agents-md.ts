@@ -158,12 +158,18 @@ export function formatAgentsMdReminder(files: AgentsMdFile[], projectRoot: strin
 export async function getAgentsMdReminderForPath(args: {
     targetPath: string;
     projectRoot: string;
-    isTruncated: boolean;
     visibilityTracker: AgentsMdVisibilityTracker;
     resolver: AgentsMdResolver;
+    skipRoot?: boolean;
 }): Promise<AgentsMdReminderContext> {
+    const absoluteProjectRoot = resolve(args.projectRoot);
     const files = await args.resolver.findFiles(args.targetPath, args.projectRoot);
-    const newFiles = files.filter((file) => !args.visibilityTracker.isVisible(file.path));
+
+    const eligibleFiles = args.skipRoot
+        ? files.filter((file) => resolve(file.directory) !== absoluteProjectRoot)
+        : files;
+
+    const newFiles = eligibleFiles.filter((file) => !args.visibilityTracker.isVisible(file.path));
 
     if (newFiles.length === 0) {
         return {
@@ -173,10 +179,8 @@ export async function getAgentsMdReminderForPath(args: {
         };
     }
 
-    if (!args.isTruncated) {
-        for (const file of newFiles) {
-            args.visibilityTracker.markVisible(file.path);
-        }
+    for (const file of newFiles) {
+        args.visibilityTracker.markVisible(file.path);
     }
 
     return {

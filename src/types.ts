@@ -4,6 +4,11 @@ export type FsToolName = string;
 
 export interface AgentsMdOptions {
     projectRoot?: string;
+    /**
+     * When true, the root-level AGENTS.md is excluded from tool result injection.
+     * Use this when the root AGENTS.md is already included in the system prompt.
+     */
+    skipRoot?: boolean;
 }
 
 export interface AnalyzeContentArgs {
@@ -44,7 +49,7 @@ export interface ErrorTextResult {
 export interface FsReadInput {
     path?: string;
     tool?: string;
-    description?: string;
+    description: string;
     offset?: number;
     limit?: number;
     allowOutsideWorkingDirectory?: boolean;
@@ -54,13 +59,13 @@ export interface FsReadInput {
 export interface FsWriteInput {
     path: string;
     content: string;
-    description?: string;
+    description: string;
     allowOutsideWorkingDirectory?: boolean;
 }
 
 export interface FsEditInput {
     path: string;
-    description?: string;
+    description: string;
     old_string: string;
     new_string: string;
     replace_all?: boolean;
@@ -69,7 +74,7 @@ export interface FsEditInput {
 
 export interface FsGlobInput {
     pattern: string;
-    description?: string;
+    description: string;
     path?: string;
     head_limit?: number;
     offset?: number;
@@ -80,7 +85,7 @@ export type GrepOutputMode = "files_with_matches" | "content" | "count";
 
 export interface FsGrepInput {
     pattern: string;
-    description?: string;
+    description: string;
     path?: string;
     output_mode?: GrepOutputMode;
     glob?: string;

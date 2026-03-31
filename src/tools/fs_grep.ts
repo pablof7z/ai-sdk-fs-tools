@@ -25,7 +25,7 @@ const MAX_CONTENT_SIZE = 50_000;
 function buildGrepInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
     const baseFields = {
         pattern: z.string().describe("Regex pattern to search for."),
-        description: z.string().optional().describe("Human-readable reason for the search."),
+        description: z.string().describe("Human-readable reason for the search."),
         path: z.string().optional().describe("Absolute file or directory to search within."),
         output_mode: z
             .enum(["files_with_matches", "content", "count"])
@@ -381,11 +381,6 @@ export function createFsGrepTool(options: FsToolsOptions): FsTool<FsGrepInput, s
                 } catch (error) {
                     return createErrorText(error instanceof Error ? error.message : String(error));
                 }
-            }
-
-            const description = input.description?.trim();
-            if (!description) {
-                return createErrorText("description is required");
             }
 
             if (!input.pattern.trim()) {

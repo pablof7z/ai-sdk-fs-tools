@@ -51,7 +51,6 @@ describe("agents-md helpers", () => {
         const reminder = await getAgentsMdReminderForPath({
             targetPath: join(projectRoot, "src", "index.ts"),
             projectRoot,
-            isTruncated: false,
             visibilityTracker: createAgentsMdVisibilityTracker(),
             resolver,
         });

@@ -24,7 +24,7 @@ const DEFAULT_EXCLUDED_DIRECTORIES = new Set([
 function buildGlobInputSchema(resolvedOptions: ResolvedFsToolsOptions) {
     const baseFields = {
         pattern: z.string().describe("Glob pattern to match files."),
-        description: z.string().optional().describe("Human-readable reason for the search."),
+        description: z.string().describe("Human-readable reason for the search."),
         path: z.string().optional().describe("Absolute directory to search within. Defaults to workingDirectory."),
         head_limit: z.number().int().optional().describe("Maximum number of results. Use 0 for unlimited."),
         offset: z.number().int().optional().describe("Skip the first N results."),
@@ -63,11 +63,6 @@ export function createFsGlobTool(options: FsToolsOptions): FsTool<FsGlobInput, s
                 } catch (error) {
                     return createErrorText(error instanceof Error ? error.message : String(error));
                 }
-            }
-
-            const description = input.description?.trim();
-            if (!description) {
-                return createErrorText("description is required");
             }
 
             if (!input.pattern.trim()) {
