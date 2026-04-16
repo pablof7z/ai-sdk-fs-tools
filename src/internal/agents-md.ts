@@ -45,6 +45,10 @@ export function createAgentsMdVisibilityTracker(): AgentsMdVisibilityTracker {
 }
 
 export function createAgentsMdResolver(): AgentsMdResolver {
+    // Cache for found AGENTS.md content (positive results only)
+    // We don't cache negative results to allow newly created files to be detected
+    const fileContentCache = new Map<string, string>();
+
     async function isDirectory(targetPath: string): Promise<boolean> {
         try {
             return (await stat(targetPath)).isDirectory();
@@ -54,9 +58,16 @@ export function createAgentsMdResolver(): AgentsMdResolver {
     }
 
     async function readAgentsMdFile(absolutePath: string): Promise<string | null> {
+        const cached = fileContentCache.get(absolutePath);
+        if (cached !== undefined) {
+            return cached;
+        }
         try {
-            return await readFile(absolutePath, "utf8");
+            const content = await readFile(absolutePath, "utf8");
+            fileContentCache.set(absolutePath, content);
+            return content;
         } catch {
+            // Don't cache missing files - they might be created later
             return null;
         }
     }
@@ -127,7 +138,7 @@ export function createAgentsMdResolver(): AgentsMdResolver {
     }
 
     function clearCache(): void {
-        // No-op retained for backwards compatibility with older callers.
+        fileContentCache.clear();
     }
 
     return {
@@ -190,16 +201,28 @@ export async function getAgentsMdReminderForPath(args: {
     };
 }
 
+// Module-level singleton resolver for the exported convenience functions.
+// This avoids creating a new resolver on every call when no resolver is passed,
+// eliminating redundant object allocations during prompt compilation.
+let defaultResolver: AgentsMdResolver | null = null;
+
+function getDefaultResolver(): AgentsMdResolver {
+    if (!defaultResolver) {
+        defaultResolver = createAgentsMdResolver();
+    }
+    return defaultResolver;
+}
+
 export async function hasRootAgentsMd(
     projectRoot: string,
-    resolver: AgentsMdResolver = createAgentsMdResolver()
+    resolver: AgentsMdResolver = getDefaultResolver()
 ): Promise<boolean> {
     return resolver.hasRootAgentsMd(projectRoot);
 }
 
 export async function getRootAgentsMdContent(
     projectRoot: string,
-    resolver: AgentsMdResolver = createAgentsMdResolver()
+    resolver: AgentsMdResolver = getDefaultResolver()
 ): Promise<string | null> {
     return resolver.getRootAgentsMdContent(projectRoot);
 }
